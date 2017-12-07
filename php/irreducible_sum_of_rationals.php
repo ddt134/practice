@@ -2,26 +2,26 @@
 function sumFracts($l) {
 // your code
     $numerator=0;
-    $denominator=1;//最小公倍数
+    $lcm=1;//最小公倍数
     foreach($l as $k=>$v){
-        $max=max($denominator,$v[1]);
-        $min=min($denominator,$v[1]);
+        $max=max($lcm,$v[1]);
+        $min=min($lcm,$v[1]);
         if($max%$min){
-            $denominator*=$v[1];
+            $lcm*=$v[1];
         }else{
-            if($denominator==$min){
-                $denominator=$v[1];
+            if($lcm==$min){
+                $lcm=$v[1];
             }
         }
     }
     foreach($l as $k=>$v){
-        $numerator+=$denominator/$v[1]*$v[0];
+        $numerator+=$lcm/$v[1]*$v[0];
     }
-    if(!$temp=$numerator%$denominator){
-        return $numerator/$denominator;
+    if(!$temp=$numerator%$lcm){
+        return $numerator/$lcm;
     }
-    $gcd=gcd($numerator,$denominator);//最大公约数
-    return [$numerator/$gcd,$denominator/$gcd];
+    $gcd=gcd($numerator,$lcm);//最大公约数
+    return [$numerator/$gcd,$lcm/$gcd];
 }
 
 function gcd($a,$b){
