@@ -30,8 +30,8 @@ class FluentCalculator
         return self::$instance;
     }
 
-    public function __call($name,$param){
-        if($this->count>=9){
+    public function __get($name){
+        if($this->count>=8){
             throw new DigitCountOverflowException();
         }
         $this->count++;
@@ -58,9 +58,27 @@ class FluentCalculator
         }
         throw new InvalidInputException();
     }
-    // you can define 2 (two) more methods
-    public function run()
-    {
+
+    public function __call($name,$param){
+        if(array_key_exists($name,$this->numMap)){
+            if(empty($this->lastName)||in_array($this->lastName,$this->optMap)){
+                array_push($this->numStack,$this->numMap[$name]);
+            }else{
+                array_push($this->numStack,array_pop($this->numStack)."{$this->numMap[$name]}");
+            }
+        }
+        if(in_array($name,$this->optMap)){
+            if(empty($this->lastName)||array_key_exists($this->lastName,$this->numStack)){
+                if(!empty($this->optStack)&&in_array(end($this->optStack),$this->priorityOpt)&&!in_array($name,$this->priorityOpt)){
+                    $option=array_pop($this->optStack);
+                    array_push($this->numStack,$option);
+                }
+                array_push($this->optStack,$name);
+            }else{
+                array_pop($this->optStack);
+                array_push($this->optStack,$name);
+            }
+        }
         foreach($this->optStack as $k=>$v){
             array_push($this->numStack,$v);
         }
@@ -98,9 +116,10 @@ class FluentCalculator
         }
         return $this->result[0];
     }
+
 }
 
-var_dump(FluentCalculator::init()->one()->zero()->run());
+var_dump(FluentCalculator::init()->one->zero());
 
 /*public function testBasicValueTests() {
     $this->assertSame(FluentCalculator::init()->zero(), 0);
