@@ -1,7 +1,6 @@
 <?php
 class FluentCalculator
 {
-    public static $instance;
     private $numMap=[
         'zero'=>0,
         'one'=>1,
@@ -20,77 +19,77 @@ class FluentCalculator
     private $numStack=[];
     private $result=[];
     private $count=0;
-    private $lastName;
+    private $lastName=null;
     public static function init() {
-        if(!self::$instance instanceof FluentCalculator){
-            self::$instance=new FluentCalculator();
-        }
-
-
-        return self::$instance;
+        return new FluentCalculator();
     }
 
     public function __get($name){
-        if($this->count>=8){
-            throw new DigitCountOverflowException();
-        }
-        $this->count++;
         if(array_key_exists($name,$this->numMap)){
-            if(empty($this->lastName)||in_array($this->lastName,$this->optMap)){
+            if($this->lastName===null||in_array($this->lastName,$this->optMap)){
                 array_push($this->numStack,$this->numMap[$name]);
             }else{
-                array_push($this->numStack,array_pop($this->numStack)."{$this->numMap[$name]}");
+                array_push($this->numStack,intval(array_pop($this->numStack)."{$this->numMap[$name]}"));
             }
-            return self::$instance;
+            $this->lastName=$this->numMap[$name];
+            return $this;
         }
         if(in_array($name,$this->optMap)){
-            if(empty($this->lastName)||array_key_exists($this->lastName,$this->numStack)){
-                if(!empty($this->optStack)&&in_array(end($this->optStack),$this->priorityOpt)&&!in_array($name,$this->priorityOpt)){
-                    $option=array_pop($this->optStack);
-                    array_push($this->numStack,$option);
+            if($this->lastName===null){
+                //开头为负数的情况
+                if(in_array($name,$this->priorityOpt)){
+                    throw new InvalidInputException();
+                }else{
+                    array_push($this->numStack,0);
+                    array_push($this->optStack,$name);
+                }
+            }else if(in_array($this->lastName,$this->numMap)){
+                $temp=$this->optStack;
+                if(!empty($temp)){
+                    $limit=count($temp);
+                    for($i=0;$i<$limit;$i++){
+                        if(!empty($this->optStack)){
+                            if(!in_array($name,$this->priorityOpt)||(in_array(end($this->optStack),$this->priorityOpt)&&in_array($name,$this->priorityOpt))){
+                                $option=array_pop($this->optStack);
+                                array_push($this->numStack,$option);
+                                continue;
+                            }
+                        }
+                        break;
+                    }
                 }
                 array_push($this->optStack,$name);
             }else{
                 array_pop($this->optStack);
                 array_push($this->optStack,$name);
             }
-            return self::$instance;
+            $this->lastName=$name;
+            return $this;
         }
         throw new InvalidInputException();
     }
 
     public function __call($name,$param){
+        if(!array_key_exists($name,$this->numMap)&&!in_array($name,$this->optMap)){
+            throw new InvalidInputException();
+        }
         if(array_key_exists($name,$this->numMap)){
-            if(empty($this->lastName)||in_array($this->lastName,$this->optMap)){
+            if($this->lastName===null||in_array($this->lastName,$this->optMap)){
                 array_push($this->numStack,$this->numMap[$name]);
             }else{
-                array_push($this->numStack,array_pop($this->numStack)."{$this->numMap[$name]}");
+                array_push($this->numStack,intval(array_pop($this->numStack)."{$this->numMap[$name]}"));
             }
         }
-        if(in_array($name,$this->optMap)){
-            if(empty($this->lastName)||array_key_exists($this->lastName,$this->numStack)){
-                if(!empty($this->optStack)&&in_array(end($this->optStack),$this->priorityOpt)&&!in_array($name,$this->priorityOpt)){
-                    $option=array_pop($this->optStack);
-                    array_push($this->numStack,$option);
-                }
-                array_push($this->optStack,$name);
-            }else{
-                array_pop($this->optStack);
-                array_push($this->optStack,$name);
-            }
-        }
-        foreach($this->optStack as $k=>$v){
-            array_push($this->numStack,$v);
-        }
+        $this->numStack=array_merge($this->numStack,array_reverse($this->optStack));
         foreach($this->numStack as $k=>$v){
-            if(in_array($v,$this->numMap)){
+            if(is_numeric ($v)){
                 array_push($this->result,$v);
             }else{
                 if(count($this->result)<2){
                     throw new InvalidInputException();
                 }
-                $num1=array_pop($this->result);
                 $num2=array_pop($this->result);
+                $num1=array_pop($this->result);
                 switch($v){
                     case 'plus':
                         $newNum=intval($num1)+intval($num2);
@@ -105,7 +104,7 @@ class FluentCalculator
                         if($num2==0){
                             throw new DivisionByZeroException();
                         }
-                        $newNum=intval($num1)/intval($num2);
+                        $newNum=intval(floor(intval($num1)/intval($num2)));
                         break;
                 }
                 array_push($this->result,$newNum);
@@ -119,7 +118,7 @@ class FluentCalculator
 
 }
 
-var_dump(FluentCalculator::init()->one->zero());
+var_dump(FluentCalculator::init()->one->minus->one->zero->dividedBy->nine->plus->three->times->seven());
 
 /*public function testBasicValueTests() {
     $this->assertSame(FluentCalculator::init()->zero(), 0);
