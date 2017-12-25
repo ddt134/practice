@@ -14,11 +14,7 @@ class FluentCalculator
         'nine'=>9,
     ];
     private $optMap=['plus','minus','times','dividedBy'];
-    private $priorityOpt=['times','dividedBy'];
-    private $optStack=[];
-    private $numStack=[];
-    private $result=[];
-    private $count=0;
+    private $temp=[];
     private $lastName=null;
     public static function init() {
         return new FluentCalculator();
@@ -26,42 +22,23 @@ class FluentCalculator
 
     public function __get($name){
         if(array_key_exists($name,$this->numMap)){
-            if($this->lastName===null||in_array($this->lastName,$this->optMap,true)){
-                array_push($this->numStack,$this->numMap[$name]);
+            if($this->lastName!==null&&in_array($this->lastName,$this->numMap,true)){
+                array_push($this->temp,intval(array_pop($this->temp)."{$this->numMap[$name]}"));
             }else{
-                array_push($this->numStack,intval(array_pop($this->numStack)."{$this->numMap[$name]}"));
+                array_push($this->temp,$this->numMap[$name]);
             }
             $this->lastName=$this->numMap[$name];
             return $this;
         }
         if(in_array($name,$this->optMap)){
             if($this->lastName===null){
-                //开头为负数的情况
-                if(in_array($name,$this->priorityOpt)){
-                    throw new InvalidInputException();
-                }else{
-                    array_push($this->numStack,0);
-                    array_push($this->optStack,$name);
-                }
-            }else if(in_array($this->lastName,$this->numMap,true)){
-                $temp=$this->optStack;
-                if(!empty($temp)){
-                    $limit=count($temp);
-                    for($i=0;$i<$limit;$i++){
-                        if(!empty($this->optStack)){
-                            if(!in_array($name,$this->priorityOpt)||(in_array(end($this->optStack),$this->priorityOpt)&&in_array($name,$this->priorityOpt))){
-                                $option=array_pop($this->optStack);
-                                array_push($this->numStack,$option);
-                                continue;
-                            }
-                        }
-                        break;
-                    }
-                }
-                array_push($this->optStack,$name);
+                array_push($this->temp,0);
+                array_push($this->temp,$name);
             }else{
-                array_pop($this->optStack);
-                array_push($this->optStack,$name);
+                if(in_array($this->lastName,$this->optMap,true)){
+                    array_pop($this->temp);
+                }
+                array_push($this->temp,$name);
             }
             $this->lastName=$name;
             return $this;
@@ -70,57 +47,88 @@ class FluentCalculator
     }
 
     public function __call($name,$param){
-        if(!array_key_exists($name,$this->numMap)&&!in_array($name,$this->optMap,true)){
-            throw new InvalidInputException();
+        $this->__get($name);
+        if(in_array(end($this->temp),$this->optMap,true)){
+            array_pop($this->temp);
         }
-        if(array_key_exists($name,$this->numMap)){
-            if($this->lastName===null||in_array($this->lastName,$this->optMap,true)){
-                array_push($this->numStack,$this->numMap[$name]);
-            }else{
-                array_push($this->numStack,intval(array_pop($this->numStack)."{$this->numMap[$name]}"));
-            }
-        }
-        $this->numStack=array_merge($this->numStack,array_reverse($this->optStack));
-        foreach($this->numStack as $k=>$v){
-            if(is_numeric ($v)){
-                array_push($this->result,$v);
-            }else{
-                if(count($this->result)<2){
-                    throw new InvalidInputException();
+        $limit=count($this->temp);
+        if($limit>=3){
+            $num1=$this->temp[0];
+            for($i=2;$i<=$limit;$i+=2){
+                $option=$this->temp[$i-1];
+                $num2=$this->temp[$i];
+                if(strlen(abs($num1))>9||strlen(abs($num2))>9){
+                    throw new DigitCountOverflowException();
                 }
-                $num2=array_pop($this->result);
-                $num1=array_pop($this->result);
-                switch($v){
+                switch($option){
                     case 'plus':
-                        $newNum=intval($num1)+intval($num2);
+                        $num1=intval($num1)+intval($num2);
                         break;
                     case 'minus':
-                        $newNum=intval($num1)-intval($num2);
+                        $num1=intval($num1)-intval($num2);
                         break;
                     case 'times':
-                        $newNum=intval($num1)*intval($num2);
+                        $num1=intval($num1)*intval($num2);
                         break;
                     case 'dividedBy':
                         if($num2==0){
                             throw new DivisionByZeroException();
                         }
-                        $newNum=intval(floor(intval($num1)/intval($num2)));
+                        $quotient=intval($num1)/intval($num2);
+                        $num1=($quotient>0)?intval(floor($quotient)):intval(ceil($quotient));
                         break;
                 }
-                array_push($this->result,$newNum);
             }
+            $res=$num1;
+        }else{
+            $res=$this->temp[0];
         }
-        if(strlen($this->result[0])>9){
+        if(strlen(abs($res))>9){
             throw new DigitCountOverflowException();
         }
-        return $this->result[0];
+        return $res;
     }
-
 }
-
-var_dump(FluentCalculator::init()->one->minus->one->zero->dividedBy->nine->plus->three->times->seven());
-
-/*public function testBasicValueTests() {
+/*
+ * intval(in_array($name,['times','dividedBy']))
+ * if(!array_key_exists($name,$this->numMap)&&!in_array($name,$this->optMap)){
+           throw new InvalidInputException();
+       }
+       if(array_key_exists($name,$this->numMap)){
+           if($this->lastName!==null&&in_array($this->lastName,$this->numMap,true)){
+               array_push($this->temp,intval(array_pop($this->temp)."{$this->numMap[$name]}"));
+           }else{
+               array_push($this->temp,$this->numMap[$name]);
+           }
+       }
+       if(in_array($name,$this->optMap)) {
+           if ($this->lastName === null) {
+               array_push($this->temp, intval(in_array($name, ['times', 'dividedBy'])));
+               array_push($this->temp, $name);
+           }
+       }*/
+/*var_dump(ceil(-0.01));
+var_dump(ceil(-1.55));
+var_dump(ceil(-0.5));*/
+var_dump(FluentCalculator::init()->minus->four->zero->times->minus->eight->five->two->three->times->zero->eight->two->two->seven->five());
+/*
+ public function testShouldThrowDigitCountOverflowException1() {
+		$this->expectException(DigitCountOverflowException::class);
+		FluentCalculator::init()->one->two->three->four->five->six->seven->eight->nine->zero();
+	}
+	public function testShouldThrowDigitCountOverflowException2() {
+		$this->expectException(DigitCountOverflowException::class);
+		FluentCalculator::init()->one->two->three->four->five->six->seven->eight->nine->times->one->two();
+	}
+	public function testShouldThrowDigitCountOverflowException3() {
+		$this->expectException(DigitCountOverflowException::class);
+		FluentCalculator::init()->nine->nine->nine->nine->nine->nine->nine->nine->nine->plus->one();
+	}
+	public function testShouldThrowDigitCountOverflowException4() {
+		$this->expectException(DigitCountOverflowException::class);
+		FluentCalculator::init()->one->zero->zero->zero->zero->zero->times->one->zero->zero->zero->zero->zero();
+	}
+ public function testBasicValueTests() {
     $this->assertSame(FluentCalculator::init()->zero(), 0);
     $this->assertSame(FluentCalculator::init()->one(), 1);
     $this->assertSame(FluentCalculator::init()->two(), 2);
@@ -158,4 +166,3 @@ public function testMoreThanOneOperations() {
     $this->assertSame(15, FluentCalculator::init()->one->plus->two->dividedBy->three->times->one->zero->minus->three->plus->eight());
     $this->assertSame(-4, FluentCalculator::init()->three->dividedBy->six->times->one->zero->plus->three->minus->seven());
 }*/
-
